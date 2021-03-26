@@ -12,11 +12,6 @@ type Source struct {
 	ObjectsWithValue map[string]string
 }
 
-type resultWithCount struct {
-	countGroups int
-	result      Result
-}
-
 type Result = map[string]map[string]string
 
 func MergeSync(sources []*Source) (Result, error) {
