@@ -46,3 +46,9 @@ func TestAddError(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrAddAfterClose))
 }
+
+func TestDoubleStop(t *testing.T) {
+	wp := StartNewPool(3)
+	wp.WaitJobsAndStop()
+	wp.WaitJobsAndStop()
+}

@@ -1,6 +1,7 @@
 package workers_pool
 
 import (
+	"context"
 	"errors"
 	"sync"
 )
@@ -10,11 +11,12 @@ var (
 )
 
 type WorkersPool struct {
-	poolSize int
-	wg       *sync.WaitGroup
-	jobs     []func()
-	newJobs  chan func()
-	closed   chan struct{}
+	poolSize  int
+	wg        *sync.WaitGroup
+	jobs      []func()
+	newJobs   chan func()
+	ctx       context.Context
+	cancelCtx context.CancelFunc
 }
 
 func StartNewPool(poolSize int) *WorkersPool {
@@ -22,8 +24,8 @@ func StartNewPool(poolSize int) *WorkersPool {
 		poolSize: poolSize,
 		wg:       &sync.WaitGroup{},
 		newJobs:  make(chan func()),
-		closed:   make(chan struct{}),
 	}
+	wp.ctx, wp.cancelCtx = context.WithCancel(context.Background())
 	wp.wg.Add(wp.poolSize)
 	go wp.start()
 	return wp
@@ -33,13 +35,13 @@ func (wp *WorkersPool) AddJob(job func()) error {
 	select {
 	case wp.newJobs <- job:
 		return nil
-	case <-wp.closed:
+	case <-wp.ctx.Done():
 		return ErrAddAfterClose
 	}
 }
 
 func (wp *WorkersPool) WaitJobsAndStop() {
-	close(wp.closed)
+	wp.cancelCtx()
 	wp.wg.Wait()
 }
 
@@ -50,7 +52,7 @@ func (wp *WorkersPool) start() {
 		go wp.worker(workerJobs)
 	}
 
-	closed := wp.closed
+	closed := wp.ctx.Done()
 	newJobs := wp.newJobs
 	for {
 		var nextJob func()
