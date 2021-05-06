@@ -62,7 +62,7 @@ func (csrv *srv) disconnectClient(ctx context.Context, cl *client, disconnectErr
 
 func (csrv *srv) syncClient(ctx context.Context, clientID, fromID int64, count int) {
 	if fromID < 0 {
-		messages, err := csrv.stor.GetLastMessages(ctx, fromID, count)
+		messages, err := csrv.stor.GetLastMessages(ctx, count)
 		csrv.cmdsCh <- clientSynchronizedCmd{
 			clientID: clientID,
 			err:      err,
@@ -81,7 +81,7 @@ func (csrv *srv) syncClient(ctx context.Context, clientID, fromID int64, count i
 	}
 	var allMessages []*Message
 	for {
-		messages, err := csrv.stor.GetLastMessages(ctx, fromID, syncMessagesCount)
+		messages, err := csrv.stor.GetMessages(ctx, fromID, syncMessagesCount)
 		if err != nil {
 			csrv.cmdsCh <- clientSynchronizedCmd{
 				clientID: clientID,

@@ -41,6 +41,7 @@ type DisconnectClientCmd struct {
 
 type Storage interface {
 	AddMessage(ctx context.Context, content string) (*Message, error)
-	GetLastMessages(ctx context.Context, fromID int64, count int) ([]*Message, error)
+	GetLastMessages(ctx context.Context, count int) ([]*Message, error)
+	GetMessages(ctx context.Context, fromID int64, count int) ([]*Message, error)
 	GetLastMsgID(ctx context.Context) (int64, error)
 }
