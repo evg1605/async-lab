@@ -26,20 +26,37 @@ type srv struct {
 	clients     map[int64]*client
 	cmdsCh      chan interface{}
 	stor        Storage
+
+	closedCh chan struct{}
 }
 
-func StartCore(ctx context.Context, stor Storage) chan<- interface{} {
+func StartCore(ctx context.Context, stor Storage) (chan<- interface{}, <-chan struct{}) {
 	csrv := &srv{
-		clients: make(map[int64]*client),
-		cmdsCh:  make(chan interface{}),
-		stor:    stor,
+		clients:  make(map[int64]*client),
+		cmdsCh:   make(chan interface{}),
+		stor:     stor,
+		closedCh: make(chan struct{}),
 	}
 	go csrv.mainLoop(ctx)
-	return csrv.cmdsCh
+	return csrv.cmdsCh, csrv.closedCh
 }
 
 func (csrv *srv) mainLoop(ctx context.Context) {
+
+	defer func() {
+		for _, cl := range csrv.clients {
+			csrv.disconnectClient(cl, ErrDisconnectedByServer)
+		}
+		close(csrv.closedCh)
+	}()
+
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		select {
 		case cmd := <-csrv.cmdsCh:
 			switch cmd := cmd.(type) {
@@ -50,51 +67,61 @@ func (csrv *srv) mainLoop(ctx context.Context) {
 			case *clientSynchronizedCmd:
 				csrv.processClientSynchronized(ctx, cmd)
 			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }
 
-func (csrv *srv) disconnectClient(ctx context.Context, cl *client, disconnectErr error) {
+func (csrv *srv) disconnectClient(cl *client, disconnectErr error) {
 	delete(csrv.clients, cl.id)
 	close(cl.messagesCh)
 	cl.closedByServerCh <- disconnectErr
 }
 
 func (csrv *srv) syncClient(ctx context.Context, clientID, fromID int64, count int) {
+
+	sendResult := func(cmd *clientSynchronizedCmd) {
+		select {
+		case csrv.cmdsCh <- cmd:
+		case <-ctx.Done():
+		}
+	}
+
 	if fromID < 0 {
 		messages, err := csrv.stor.GetLastMessages(ctx, count)
-		csrv.cmdsCh <- clientSynchronizedCmd{
+		sendResult(&clientSynchronizedCmd{
 			clientID: clientID,
 			err:      err,
 			messages: messages,
-		}
+		})
 		return
 	}
 
 	lastMsgID, err := csrv.stor.GetLastMsgID(ctx)
 	if err != nil {
-		csrv.cmdsCh <- clientSynchronizedCmd{
+		sendResult(&clientSynchronizedCmd{
 			clientID: clientID,
 			err:      err,
-		}
+		})
 		return
 	}
 	var allMessages []*Message
 	for {
 		messages, err := csrv.stor.GetMessages(ctx, fromID, syncMessagesCount)
 		if err != nil {
-			csrv.cmdsCh <- clientSynchronizedCmd{
+			sendResult(&clientSynchronizedCmd{
 				clientID: clientID,
 				err:      err,
-			}
+			})
 			return
 		}
 		allMessages = append(allMessages, messages...)
 		if len(messages) == 0 || messages[len(messages)-1].ID >= lastMsgID {
-			csrv.cmdsCh <- clientSynchronizedCmd{
+			sendResult(&clientSynchronizedCmd{
 				clientID: clientID,
 				messages: allMessages,
-			}
+			})
 			return
 		}
 		fromID = messages[len(messages)-1].ID + 1
@@ -125,7 +152,7 @@ func (csrv *srv) processAddMessage(ctx context.Context, cmd *AddMessageCmd) {
 		cmd.Result <- &AddMessageResult{Err: err}
 		return
 	}
-	var badClients []*client
+
 	for _, cl := range csrv.clients {
 		if !cl.isSyncDone {
 			cl.lastMessages = append(cl.lastMessages, msg)
@@ -134,14 +161,12 @@ func (csrv *srv) processAddMessage(ctx context.Context, cmd *AddMessageCmd) {
 		select {
 		case cl.messagesCh <- []*Message{msg}:
 		case <-cl.closedByClientCtx.Done():
-			badClients = append(badClients, cl)
+			csrv.disconnectClient(cl, ErrDisconnectedByClient)
 		case <-ctx.Done():
 			return
 		}
 	}
-	for _, cl := range badClients {
-		csrv.disconnectClient(ctx, cl, ErrDisconnectedByClient)
-	}
+
 }
 
 func (csrv *srv) processClientSynchronized(ctx context.Context, cmd *clientSynchronizedCmd) {
@@ -150,7 +175,7 @@ func (csrv *srv) processClientSynchronized(ctx context.Context, cmd *clientSynch
 		return
 	}
 	if cmd.err != nil {
-		csrv.disconnectClient(ctx, cl, cmd.err)
+		csrv.disconnectClient(cl, cmd.err)
 		return
 	}
 
@@ -165,7 +190,7 @@ func (csrv *srv) processClientSynchronized(ctx context.Context, cmd *clientSynch
 	select {
 	case cl.messagesCh <- messages:
 	case <-cl.closedByClientCtx.Done():
-		csrv.disconnectClient(ctx, cl, ErrDisconnectedByClient)
+		csrv.disconnectClient(cl, ErrDisconnectedByClient)
 	case <-ctx.Done():
 		return
 	}
@@ -176,7 +201,7 @@ func (csrv *srv) processCloseClient(ctx context.Context, cmd *DisconnectClientCm
 	if !ok {
 		return
 	}
-	csrv.disconnectClient(ctx, cl, ErrDisconnectedByClient)
+	csrv.disconnectClient(cl, ErrDisconnectedByClient)
 }
 
 func getMessagesAfter(messages []*Message, afterID int64) []*Message {

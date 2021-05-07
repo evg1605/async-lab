@@ -10,7 +10,10 @@ type Message struct {
 	Content string
 }
 
-var ErrDisconnectedByClient = errors.New("client was disconnected")
+var (
+	ErrDisconnectedByClient = errors.New("client was disconnected")
+	ErrDisconnectedByServer = errors.New("server disconnect client")
+)
 
 type AddMessageCmd struct {
 	Content string
