@@ -145,7 +145,7 @@ func receiveMessages(messages <-chan []*chat_core.Message, count int) <-chan []*
 }
 
 func sendMessage(t *testing.T, commands chan<- interface{}, content string) *chat_core.Message {
-	cmd, res := chat_core.CreateSendMessageCmd(content)
+	cmd, res := chat_core.CreateSendMessageCmd("userID", content)
 	commands <- cmd
 	smRes := <-res
 

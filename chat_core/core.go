@@ -156,7 +156,7 @@ func (csrv *srv) processNewClient(ctx context.Context, cmd *newClientCmd) {
 }
 
 func (csrv *srv) processSendMessage(ctx context.Context, cmd *sendMessageCmd) {
-	msg, err := csrv.stor.AddMessage(ctx, cmd.content)
+	msg, err := csrv.stor.AddMessage(ctx, cmd.userID, cmd.content)
 	if err != nil {
 		cmd.result <- &SendMessageResult{Err: err}
 		return

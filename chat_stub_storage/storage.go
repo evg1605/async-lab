@@ -19,7 +19,7 @@ func NewStorage() *stubStorage {
 	}
 }
 
-func (ss *stubStorage) AddMessage(ctx context.Context, content string) (*chat_core.Message, error) {
+func (ss *stubStorage) AddMessage(ctx context.Context, userID, content string) (*chat_core.Message, error) {
 	ss.lock.Lock()
 	defer ss.lock.Unlock()
 
@@ -27,6 +27,7 @@ func (ss *stubStorage) AddMessage(ctx context.Context, content string) (*chat_co
 	msg := &chat_core.Message{
 		ID:      ss.idGen,
 		Content: content,
+		UserID:  userID,
 	}
 	ss.messages = append(ss.messages, msg)
 	return msg, nil

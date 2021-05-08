@@ -23,7 +23,7 @@ func TestSimple(t *testing.T) {
 	countMessages := 10
 	for i := 0; i < countMessages; i++ {
 		content := fmt.Sprintf("msg-%v", i)
-		msg, err := stor.AddMessage(context.Background(), content)
+		msg, err := stor.AddMessage(context.Background(), "user-1", content)
 		require.NoError(t, err)
 		require.NotNil(t, msg)
 		require.Equal(t, content, msg.Content)

@@ -23,12 +23,14 @@ func CreateNewClientCmd(lastMsgID int64, lastMessagesCount int) (cmd interface{}
 }
 
 type sendMessageCmd struct {
+	userID  string
 	content string
 	result  chan *SendMessageResult
 }
 
-func CreateSendMessageCmd(content string) (cmd interface{}, result <-chan *SendMessageResult) {
+func CreateSendMessageCmd(userID, content string) (cmd interface{}, result <-chan *SendMessageResult) {
 	smCmd := &sendMessageCmd{
+		userID:  userID,
 		content: content,
 		result:  make(chan *SendMessageResult, 1),
 	}
