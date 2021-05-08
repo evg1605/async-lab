@@ -1,0 +1,1 @@
+protoc --go_out=chat_contracts --go_opt=paths=source_relative --go-grpc_out=chat_contracts --go-grpc_opt=paths=source_relative chat.proto

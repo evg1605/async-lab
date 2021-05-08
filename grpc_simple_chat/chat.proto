@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+option go_package = "/chat_contracts";
+
+package chat_contracts;
+
+service Chat{
+  rpc SendMessage(SendMessageCmd) returns (ChatMsg) {}
+
+  rpc GetMessages(GetMessagesCmd) returns (stream ChatMsg) {}
+}
+
+message GetMessagesCmd {
+  int64  lastMsgID = 1;
+
+  int32  lastMessagesCount = 2;
+}
+
+message SendMessageCmd {
+  // User id
+  string userID = 1;
+
+  // Message content
+  string content = 2;
+}
+
+message ChatMsg{
+  // Message id
+  int64 id = 1;
+
+  // User id
+  string userID = 2;
+
+  // Message content
+  string content = 3;
+}
