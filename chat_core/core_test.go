@@ -115,6 +115,22 @@ func TestListenSyncedMessagesFrom(t *testing.T) {
 	require.Equal(t, "msg-5", allMessages[2].Content)
 }
 
+func TestDisconnectClient(t *testing.T) {
+	stor := chat_stub_storage.NewStorage()
+	commands, _ := chat_core.StartCore(context.Background(), stor)
+
+	cmd, _, result := chat_core.CreateNewClientCmd(-1, 0)
+	commands <- cmd
+	clRes := <-result
+
+	dcCmd, dcRes := chat_core.CreateDisconnectClientCmd(clRes.ClientID)
+
+	commands <- dcCmd
+	<-dcRes
+
+	<-clRes.ClosedByServerCh
+}
+
 func receiveMessages(messages <-chan []*chat_core.Message, count int) <-chan []*chat_core.Message {
 	res := make(chan []*chat_core.Message, 1)
 	go func() {

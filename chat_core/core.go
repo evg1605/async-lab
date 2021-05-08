@@ -66,6 +66,9 @@ func (csrv *srv) mainLoop(ctx context.Context) {
 				csrv.processNewClient(ctx, cmd)
 			case *clientSynchronizedCmd:
 				csrv.processClientSynchronized(ctx, cmd)
+			case *disconnectClientCmd:
+				csrv.processDisconnectClient(cmd)
+
 			}
 		case <-ctx.Done():
 			return
@@ -207,12 +210,13 @@ func (csrv *srv) processClientSynchronized(ctx context.Context, cmd *clientSynch
 	}
 }
 
-func (csrv *srv) processCloseClient(ctx context.Context, cmd *disconnectClientCmd) {
+func (csrv *srv) processDisconnectClient(cmd *disconnectClientCmd) {
 	cl, ok := csrv.clients[cmd.clientID]
 	if !ok {
 		return
 	}
 	csrv.disconnectClient(cl, ErrDisconnectedByClient)
+	cmd.result <- struct{}{}
 }
 
 func getMessagesAfter(messages []*Message, afterID int64) []*Message {

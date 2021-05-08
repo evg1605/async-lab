@@ -38,8 +38,13 @@ func CreateSendMessageCmd(content string) (cmd interface{}, result <-chan *SendM
 
 type disconnectClientCmd struct {
 	clientID int64
+	result   chan struct{}
 }
 
-func CreateDisconnectClientCmd(clientID int64) interface{} {
-	return &disconnectClientCmd{clientID: clientID}
+func CreateDisconnectClientCmd(clientID int64) (cmd interface{}, result <-chan struct{}) {
+	dcCmd := &disconnectClientCmd{
+		clientID: clientID,
+		result:   make(chan struct{}, 1),
+	}
+	return dcCmd, dcCmd.result
 }
