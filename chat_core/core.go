@@ -188,12 +188,16 @@ func (csrv *srv) processClientSynchronized(ctx context.Context, cmd *clientSynch
 
 	var messages = cmd.messages
 	if len(messages) > 0 {
-		messages = append(getMessagesAfter(cl.lastMessages, messages[len(messages)-1].ID))
+		messages = append(messages, getMessagesAfter(cl.lastMessages, messages[len(messages)-1].ID)...)
 	} else {
 		messages = cl.lastMessages
 	}
 	cl.isSyncDone = true
 	cl.lastMessages = nil
+	if len(messages) == 0 {
+		return
+	}
+
 	select {
 	case cl.messagesCh <- messages:
 	case <-cl.closedByClientCtx.Done():
