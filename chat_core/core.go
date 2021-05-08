@@ -30,7 +30,7 @@ type srv struct {
 	closedCh chan struct{}
 }
 
-func StartCore(ctx context.Context, stor Storage) (chan<- interface{}, <-chan struct{}) {
+func StartCore(ctx context.Context, stor Storage) (commands chan<- interface{}, chatClosed <-chan struct{}) {
 	csrv := &srv{
 		clients:  make(map[int64]*client),
 		cmdsCh:   make(chan interface{}),
@@ -60,9 +60,9 @@ func (csrv *srv) mainLoop(ctx context.Context) {
 		select {
 		case cmd := <-csrv.cmdsCh:
 			switch cmd := cmd.(type) {
-			case *AddMessageCmd:
-				csrv.processAddMessage(ctx, cmd)
-			case *NewClientCmd:
+			case *sendMessageCmd:
+				csrv.processSendMessage(ctx, cmd)
+			case *newClientCmd:
 				csrv.processNewClient(ctx, cmd)
 			case *clientSynchronizedCmd:
 				csrv.processClientSynchronized(ctx, cmd)
@@ -79,7 +79,7 @@ func (csrv *srv) disconnectClient(cl *client, disconnectErr error) {
 	cl.closedByServerCh <- disconnectErr
 }
 
-func (csrv *srv) syncClient(ctx context.Context, clientID, fromID int64, count int) {
+func (csrv *srv) syncClient(ctx context.Context, clientID, fromID int64, lastMessagesCount int) {
 
 	sendResult := func(cmd *clientSynchronizedCmd) {
 		select {
@@ -89,7 +89,13 @@ func (csrv *srv) syncClient(ctx context.Context, clientID, fromID int64, count i
 	}
 
 	if fromID < 0 {
-		messages, err := csrv.stor.GetLastMessages(ctx, count)
+		if lastMessagesCount <= 0 {
+			sendResult(&clientSynchronizedCmd{
+				clientID: clientID,
+			})
+			return
+		}
+		messages, err := csrv.stor.GetLastMessages(ctx, lastMessagesCount)
 		sendResult(&clientSynchronizedCmd{
 			clientID: clientID,
 			err:      err,
@@ -128,30 +134,32 @@ func (csrv *srv) syncClient(ctx context.Context, clientID, fromID int64, count i
 	}
 }
 
-func (csrv *srv) processNewClient(ctx context.Context, cmd *NewClientCmd) {
+func (csrv *srv) processNewClient(ctx context.Context, cmd *newClientCmd) {
 	csrv.clientIDGen++
 	cl := &client{
 		id:                csrv.clientIDGen,
 		messagesCh:        make(chan []*Message),
 		isSyncDone:        false,
-		closedByClientCtx: cmd.CloseCtx,
+		closedByClientCtx: cmd.closeCtx,
 		closedByServerCh:  make(chan error, 1),
 	}
 	csrv.clients[cl.id] = cl
-	cmd.Result <- &NewClientResult{
+	cmd.result <- &NewClientResult{
 		ClientID:         cl.id,
 		Messages:         cl.messagesCh,
 		ClosedByServerCh: cl.closedByServerCh,
 	}
-	go csrv.syncClient(ctx, cl.id, cmd.LastMsgID, cmd.Count)
+	go csrv.syncClient(ctx, cl.id, cmd.lastMsgID, cmd.lastMessagesCount)
 }
 
-func (csrv *srv) processAddMessage(ctx context.Context, cmd *AddMessageCmd) {
-	msg, err := csrv.stor.AddMessage(ctx, cmd.Content)
+func (csrv *srv) processSendMessage(ctx context.Context, cmd *sendMessageCmd) {
+	msg, err := csrv.stor.AddMessage(ctx, cmd.content)
 	if err != nil {
-		cmd.Result <- &AddMessageResult{Err: err}
+		cmd.result <- &SendMessageResult{Err: err}
 		return
 	}
+
+	cmd.result <- &SendMessageResult{Msg: msg}
 
 	for _, cl := range csrv.clients {
 		if !cl.isSyncDone {
@@ -166,7 +174,6 @@ func (csrv *srv) processAddMessage(ctx context.Context, cmd *AddMessageCmd) {
 			return
 		}
 	}
-
 }
 
 func (csrv *srv) processClientSynchronized(ctx context.Context, cmd *clientSynchronizedCmd) {
@@ -196,8 +203,8 @@ func (csrv *srv) processClientSynchronized(ctx context.Context, cmd *clientSynch
 	}
 }
 
-func (csrv *srv) processCloseClient(ctx context.Context, cmd *DisconnectClientCmd) {
-	cl, ok := csrv.clients[cmd.ClientID]
+func (csrv *srv) processCloseClient(ctx context.Context, cmd *disconnectClientCmd) {
+	cl, ok := csrv.clients[cmd.clientID]
 	if !ok {
 		return
 	}

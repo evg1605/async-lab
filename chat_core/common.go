@@ -15,31 +15,15 @@ var (
 	ErrDisconnectedByServer = errors.New("server disconnect client")
 )
 
-type AddMessageCmd struct {
-	Content string
-	Result  chan *AddMessageResult
-}
-
-type AddMessageResult struct {
+type SendMessageResult struct {
 	Err error
 	Msg *Message
-}
-
-type NewClientCmd struct {
-	CloseCtx  context.Context
-	LastMsgID int64
-	Count     int
-	Result    chan *NewClientResult
 }
 
 type NewClientResult struct {
 	ClientID         int64
 	Messages         <-chan []*Message
 	ClosedByServerCh <-chan error
-}
-
-type DisconnectClientCmd struct {
-	ClientID int64
 }
 
 type Storage interface {
