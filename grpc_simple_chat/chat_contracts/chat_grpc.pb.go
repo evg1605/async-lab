@@ -55,7 +55,7 @@ func (c *chatClient) GetMessages(ctx context.Context, in *GetMessagesCmd, opts .
 }
 
 type Chat_GetMessagesClient interface {
-	Recv() (*ChatMsg, error)
+	Recv() (*ChatMessages, error)
 	grpc.ClientStream
 }
 
@@ -63,8 +63,8 @@ type chatGetMessagesClient struct {
 	grpc.ClientStream
 }
 
-func (x *chatGetMessagesClient) Recv() (*ChatMsg, error) {
-	m := new(ChatMsg)
+func (x *chatGetMessagesClient) Recv() (*ChatMessages, error) {
+	m := new(ChatMessages)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func _Chat_GetMessages_Handler(srv interface{}, stream grpc.ServerStream) error 
 }
 
 type Chat_GetMessagesServer interface {
-	Send(*ChatMsg) error
+	Send(*ChatMessages) error
 	grpc.ServerStream
 }
 
@@ -138,7 +138,7 @@ type chatGetMessagesServer struct {
 	grpc.ServerStream
 }
 
-func (x *chatGetMessagesServer) Send(m *ChatMsg) error {
+func (x *chatGetMessagesServer) Send(m *ChatMessages) error {
 	return x.ServerStream.SendMsg(m)
 }
 

@@ -7,7 +7,11 @@ package chat_contracts;
 service Chat{
   rpc SendMessage(SendMessageCmd) returns (ChatMsg) {}
 
-  rpc GetMessages(GetMessagesCmd) returns (stream ChatMsg) {}
+  rpc GetMessages(GetMessagesCmd) returns (stream ChatMessages) {}
+}
+
+message ChatMessages{
+  repeated ChatMsg messages = 1;
 }
 
 message GetMessagesCmd {
