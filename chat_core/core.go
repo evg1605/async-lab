@@ -78,7 +78,6 @@ func (csrv *srv) mainLoop(ctx context.Context) {
 
 func (csrv *srv) disconnectClient(cl *client, disconnectErr error) {
 	delete(csrv.clients, cl.id)
-	close(cl.messagesCh)
 	cl.closedByServerCh <- disconnectErr
 }
 
