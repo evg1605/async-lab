@@ -1,22 +1,27 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"flag"
 	"fmt"
-	"log"
-	"time"
-
 	"google.golang.org/grpc"
+	"log"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/evg1605/async-lab/grpc_simple_chat/chat_contracts"
 )
 
 func main() {
+	//flag.String()
+
+	flag.Parse()
 
 	var opts []grpc.DialOption
 
 	opts = append(opts, grpc.WithInsecure())
-	//opts = append(opts, grpc.WithBlock())
 	conn, err := grpc.Dial("localhost:8080", opts...)
 	if err != nil {
 		log.Fatalf("fail to dial: %v", err)
@@ -26,9 +31,10 @@ func main() {
 	}(conn)
 
 	chat := chat_contracts.NewChatClient(conn)
-
-	go sendMessageLoop(chat)
-	time.Sleep(time.Second * 600)
+	runManualSendMessages(chat, "user-1")
+	//
+	//go sendMessageLoop(chat)
+	//time.Sleep(time.Second * 600)
 
 	//messages, err := chat.GetMessages(context.Background(), &chat_contracts.GetMessagesCmd{
 	//	LastMsgID:         -1,
@@ -46,6 +52,30 @@ func main() {
 	//		log.Println(m.Content)
 	//	}
 	//}
+}
+
+func runManualSendMessages(chat chat_contracts.ChatClient, userID string) {
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print("Enter message (empty for exit): ")
+		content, err := reader.ReadString('\n')
+		if err != nil {
+			return
+		}
+		content = strings.TrimRight(content, "\n")
+		if content == "" {
+			return
+		}
+		msg, err := chat.SendMessage(context.Background(), &chat_contracts.SendMessageCmd{
+			UserID:  userID,
+			Content: content,
+		})
+		if err != nil {
+			log.Printf("error send message: %s", err)
+		} else {
+			log.Printf("send message ok: %v, %s, %s", msg.Id, msg.UserID, msg.Content)
+		}
+	}
 }
 
 func sendMessageLoop(chat chat_contracts.ChatClient) {
