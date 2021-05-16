@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -27,23 +27,31 @@ func newChatServer(ctx context.Context, chatCommands chan<- interface{}) *chatSe
 }
 
 func (cs *chatServer) SendMessage(ctx context.Context, cmd *chat_contracts.SendMessageCmd) (*chat_contracts.ChatMsg, error) {
-	chatCmd, resultCh := chat_core.CreateSendMessageCmd(cmd.UserID, cmd.Content)
+	log.Println("start: SendMessage")
+	defer func() {
+		log.Println("end: SendMessage")
+	}()
 
+	chatCmd, resultCh := chat_core.CreateSendMessageCmd(cmd.UserID, cmd.Content)
 	if err := cs.sendCmd(ctx, chatCmd); err != nil {
+		log.Printf("error send message to chat commands: %s", err)
 		return nil, err
 	}
 
 	select {
 	case <-ctx.Done():
+		log.Printf("error wait chat result, grpc context done: %s", ctx.Err())
 		return nil, ctx.Err()
 	case <-cs.mainCtx.Done():
-		return nil, cs.mainCtx.Err()
+		log.Printf("error wait chat result, main context done: %s", cs.mainCtx.Err())
+		return nil, errGrpcShutdownServer
 	case result := <-resultCh:
 		if result.Err != nil {
-			return nil, result.Err
+			log.Printf("error chat result: %s", result.Err)
+			return nil, status.Errorf(codes.Internal, "chat server error: %v", result.Err)
 		}
+		log.Printf("send message success: %v, %s, %s", result.Msg.ID, result.Msg.UserID, result.Msg.Content)
 		return chatMessageToGrpc(result.Msg), nil
-
 	}
 }
 
@@ -62,7 +70,7 @@ func (cs *chatServer) GetMessages(cmd *chat_contracts.GetMessagesCmd, grpcMessag
 	case <-grpcMessages.Context().Done():
 		return grpcMessages.Context().Err()
 	case <-cs.mainCtx.Done():
-		return cs.mainCtx.Err()
+		return errGrpcShutdownServer
 	}
 
 	chatMessagesCtx, cancelChatMessagesCtx := context.WithCancel(context.Background())
@@ -78,7 +86,7 @@ func (cs *chatServer) GetMessages(cmd *chat_contracts.GetMessagesCmd, grpcMessag
 			_ = cs.sendCmd(context.Background(), disconnectClientCmd)
 			return grpcMessages.Context().Err()
 		case err := <-chatClientClosed:
-			return status.Error(codes.Aborted, fmt.Sprintf("chat client disconnected: %s", err))
+			return status.Errorf(codes.Aborted, "chat client disconnected: %s", err)
 		case messages := <-chatMessages:
 			if err := grpcMessages.Send(&chat_contracts.ChatMessages{Messages: chatMessagesToGrpc(messages)}); err != nil {
 				return err
