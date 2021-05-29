@@ -99,7 +99,7 @@ func TestListenSyncedMessagesFrom(t *testing.T) {
 	lastReadMsg := sendMessage(t, commands, "msg-2")
 	sendMessage(t, commands, "msg-3")
 
-	cmd, _, result := chat_core.CreateNewClientCmd(lastReadMsg.ID+1, 0)
+	cmd, _, result := chat_core.CreateNewClientCmd(lastReadMsg.ID, 0)
 	commands <- cmd
 	clRes := <-result
 

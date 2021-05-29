@@ -115,6 +115,7 @@ func (csrv *srv) syncClient(ctx context.Context, clientID, fromID int64, lastMes
 		return
 	}
 	var allMessages []*Message
+	fromID += 1
 	for {
 		messages, err := csrv.stor.GetMessages(ctx, fromID, syncMessagesCount)
 		if err != nil {
