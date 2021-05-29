@@ -1,13 +1,16 @@
-package main
+package server
 
 import (
 	"context"
 	"log"
+	"net"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/evg1605/async-lab/chat_core"
+	"github.com/evg1605/async-lab/chat_stub_storage"
 	"github.com/evg1605/async-lab/grpc_simple_chat/chat_contracts"
 )
 
@@ -19,11 +22,34 @@ type chatServer struct {
 
 var errGrpcShutdownServer = status.Error(codes.Unavailable, "shutdown server")
 
-func newChatServer(ctx context.Context, chatCommands chan<- interface{}) *chatServer {
-	return &chatServer{
-		mainCtx:      ctx,
+func StartChatServer(address string) (func(), <-chan struct{}, error) {
+	lis, err := net.Listen("tcp", address)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var opts []grpc.ServerOption
+	grpcServer := grpc.NewServer(opts...)
+
+	ctxChat, cancelChat := context.WithCancel(context.Background())
+	chatCommands, chatClosed := chat_core.StartCore(ctxChat, chat_stub_storage.NewStorage())
+
+	cs := &chatServer{
+		mainCtx:      ctxChat,
 		chatCommands: chatCommands,
 	}
+	chat_contracts.RegisterChatServer(grpcServer, cs)
+
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			cancelChat()
+		}
+	}()
+
+	return func() {
+		cancelChat()
+		grpcServer.GracefulStop()
+	}, chatClosed, nil
 }
 
 func (cs *chatServer) SendMessage(ctx context.Context, cmd *chat_contracts.SendMessageCmd) (*chat_contracts.ChatMsg, error) {
